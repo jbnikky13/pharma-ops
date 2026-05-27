@@ -1,71 +1,55 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-
-interface InventoryItem {
-  id: string
-  quantity: number
-  expiry_date: string
-  supplier: string
-  drugs: { name: string; category: string; reorder_level: number }
-}
+"use client";
+// @ts-nocheck
+import { useState } from "react";
+import { useDrugs } from "../../hooks/useDrugs";
+import { exportExcel, exportPDF, exportWord } from "../../utils/exportDrugs";
+import { supabase } from "../../lib/supabase";
 
 export default function Inventory() {
-  const [items, setItems] = useState<InventoryItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const { drugs, loading } = useDrugs(supabase) as { drugs: any[], loading: boolean };
 
-  useEffect(() => {
-    async function fetchInventory() {
-      const { data } = await supabase
-        .from('inventory')
-        .select('*, drugs(name, category, reorder_level)')
-        .order('quantity', { ascending: true })
-      setItems(data || [])
-      setLoading(false)
-    }
-    fetchInventory()
-  }, [])
-
-  const getStockStatus = (qty: number, reorderLevel: number) => {
-    if (qty === 0) return { label: 'Out of Stock', color: 'text-red-500' }
-    if (qty < reorderLevel) return { label: 'Low Stock', color: 'text-yellow-500' }
-    return { label: 'In Stock', color: 'text-green-500' }
-  }
+  if (loading) return <p style={{ color: "#fff", padding: 20 }}>Loading inventory...</p>;
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-8">
-      <h1 className="text-2xl font-bold mb-6">Inventory</h1>
-      {loading ? (
-        <p className="text-gray-400">Loading...</p>
+    <div style={{ padding: 20 }}>
+      <h1 style={{ color: "#fff", marginBottom: 4 }}>Inventory</h1>
+      <p style={{ color: "#64748b", marginBottom: 16 }}>{drugs.length} drugs in stock</p>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <button onClick={() => exportPDF(drugs)} style={{ padding: "8px 16px", background: "#c0392b", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>🖨️ Export PDF</button>
+        <button onClick={() => exportExcel(drugs)} style={{ padding: "8px 16px", background: "#1e7e34", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>📊 Export Excel</button>
+        <button onClick={() => exportWord(drugs)} style={{ padding: "8px 16px", background: "#2b579a", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>📄 Export Word</button>
+      </div>
+      {drugs.length === 0 ? (
+        <p style={{ color: "#64748b" }}>No drugs found. Add some using the form or AI Agent.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr className="text-gray-400 border-b border-gray-800">
-                <th className="text-left py-3">Drug Name</th>
-                <th className="text-left py-3">Category</th>
-                <th className="text-left py-3">Quantity</th>
-                <th className="text-left py-3">Expiry</th>
-                <th className="text-left py-3">Status</th>
+              <tr>
+                {["Drug Name","Category","Unit","Qty","Cost (₦)","Expiry","Supplier","Status"].map(h => (
+                  <th key={h} style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", borderBottom: "1px solid #1e2a3a", fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
-                const status = getStockStatus(item.quantity, item.drugs?.reorder_level)
-                return (
-                  <tr key={item.id} className="border-b border-gray-800 hover:bg-gray-900">
-                    <td className="py-3 font-medium">{item.drugs?.name}</td>
-                    <td className="py-3 text-gray-400">{item.drugs?.category}</td>
-                    <td className="py-3">{item.quantity}</td>
-                    <td className="py-3 text-gray-400">{item.expiry_date}</td>
-                    <td className={`py-3 font-medium ${status.color}`}>{status.label}</td>
-                  </tr>
-                )
-              })}
+              {drugs.map((d, i) => (
+                <tr key={d.id || i}>
+                  <td style={{ padding: "10px 12px", color: "#fff", borderBottom: "1px solid #0f172a", fontWeight: 600 }}>{d.name}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.category || "-"}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.unit || "-"}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.quantity}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.cost_price ? `₦${d.cost_price}` : "-"}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.expiry_date || "-"}</td>
+                  <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #0f172a" }}>{d.supplier || "-"}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #0f172a" }}>
+                    <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: d.status === "In Stock" ? "#22c55e22" : "#ef444422", color: d.status === "In Stock" ? "#22c55e" : "#ef4444" }}>{d.status || "In Stock"}</span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
-    </main>
-  )
+    </div>
+  );
 }
